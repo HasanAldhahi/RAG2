@@ -1,0 +1,13 @@
+https://docs.gwdg.de/doku.php?id=en:current:incident
+https://docs.gwdg.de/doku.php?id=en:summary:services
+https://docs.gwdg.de/doku.php?id=en:general:start
+https://docs.gwdg.de/doku.php?id=en:services:academy:start
+https://docs.gwdg.de/doku.php?id=en:services:application_services:start
+https://docs.gwdg.de/doku.php?id=en:services:email_collaboration:start
+https://docs.gwdg.de/doku.php?id=en:services:general_services:start
+https://docs.gwdg.de/doku.php?id=en:services:it_consulting:start
+https://docs.gwdg.de/doku.php?id=en:services:it_security:start
+https://docs.gwdg.de/doku.php?id=en:services:mobile_working:start
+https://docs.gwdg.de/doku.php?id=en:services:network_services:start
+https://docs.gwdg.de/doku.php?id=en:services:server_services:start
+https://docs.gwdg.de/doku.php?id=en:services:storage_services:start
