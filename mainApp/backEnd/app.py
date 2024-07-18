@@ -1,47 +1,67 @@
-from flask import Flask, jsonify, render_template, request, json
-from ctransformers import AutoModelForCausalLM
+from flask import Flask, jsonify, request
 import os
+import google.generativeai as genai
+import numpy as np
+from FlagEmbedding import FlagModel
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'this_is_bad_secret_key'
-limit_input_tokens=4096
-model_path = './stablebeluga-7b.Q4_K_M.gguf'
 
-# Function to initialize the model
-def initialize_model():
-	# os.path.abspath is important, otherwise AutoModelForCausalLM won't understand it
-	# model_path = os.path.abspath(model_dir)
-	llm = AutoModelForCausalLM.from_pretrained(model_path,
-						local_files_only=True,
-						gpu_layers=200,
-						context_length=limit_input_tokens,
-						max_new_tokens = 2048)
-	return llm
+# Set up Gemini API
+genai.configure(api_key="AIzaSyBwtKbwZNGMuzJQ1QolielQE7XNIIkRefE")
+model = genai.GenerativeModel('gemini-pro')
 
-@app.route('/')
-def index():
-    return render_template('../frontEnd/client.html')
+# Set up RAG components
+embeddings_model_bge = FlagModel('BAAI/bge-base-en-v1.5', use_fp16=True)
+# reranker = FlagReranker('BAAI/bge-reranker-large', use_fp16=True)
+
+# Load and preprocess the dataset
+filename = './dataset_gwdg.txt'
+with open(filename, 'r') as f:
+    document = f.read()
+document_chunks = document.split('########')
+embeddings_bge = embeddings_model_bge.encode(document_chunks)
 
 @app.route('/send_message', methods=['POST'])
 def send_message():
-	# recieve message from the user
-	data = request.get_json()
+    data = request.get_json()
+    user_message = data['message']
 
-	# ensure message is converted to json if it was recieved as str
-	if isinstance(data, str):
-		data = json.loads(data)
+    try:
+        # RAG process
+        emb_bge_query = embeddings_model_bge.encode([user_message])
+        scores = emb_bge_query @ embeddings_bge.T
+        scores = np.squeeze(scores)
+        max_idx = np.argsort(-scores)
+        
+        context_chunks_init = []
+        context_scores = []
+        for idx in max_idx[:3]:
+            context_chunks_init.append(document_chunks[idx])
+            context_scores.append(scores[idx])
+        
+        context_chunks_as_str = '\n###\n'.join([str(elem) for elem in context_chunks_init])
+        
+        prompt_template = """You are a Senior Software Developer at Microsoft. Use the context to answer the question at the end. Give a very detailed answer. Never mention about context and where information comes from.
 
-	# extract text of the message
-	query = data['message']
+Context: {context}
 
-	# invoke beluga llm
-	llm_answer = llm(query, top_k=40, top_p=0.4, temperature=0.5)
-	response = {'message': llm_answer}
+Question: {question}
 
-	return jsonify(response)
+Answer:"""
+        
+        llm_full_query = prompt_template.format(context=context_chunks_as_str, question=user_message)
+        
+        # Call Gemini API with the augmented query
+        response = model.generate_content(llm_full_query)
 
+        # Extract the assistant's reply
+        assistant_reply = response.text
+
+        return jsonify({'message': assistant_reply})
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return jsonify({'error': 'An error occurred while processing your request.'}), 500
 
 if __name__ == "__main__":
-	# initialize llm model
-	llm = initialize_model()
-	app.run()
+    app.run(debug=True)
